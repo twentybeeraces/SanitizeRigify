@@ -27,7 +27,7 @@ def deselect_all(context):
     if current_active:
         current_mode = current_active.mode
     if current_mode and current_mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False) # move out of any current mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
     bpy.ops.object.select_all(action='DESELECT')
     context.view_layer.objects.active = None
@@ -80,10 +80,12 @@ def search_rigify_deform_bone_true_parent(rig_object, bone):
     """walks up the hierarchy and returns parent"""
     ORG_prefix = properties.AddonPreferences.ORG_prefix
     DEF_prefix = properties.AddonPreferences.DEF_prefix
-    reached_end = False # reach bone with no parent, if not root then parent to root
-    current_bone = bone # need to be always updated as the == self check needs to be the current bone and its immediate parent
+    # root need no parent
+    if bone is rig_object.data.edit_bones[0]:
+        return None
+    current_bone = bone
     current_parent = current_bone.parent
-    while not reached_end and current_parent:
+    while current_parent:
         if current_parent.use_deform:
             return current_parent
         # non-deforming parent.
@@ -98,10 +100,7 @@ def search_rigify_deform_bone_true_parent(rig_object, bone):
         # skip to next parent
         current_bone = current_parent
         current_parent = current_parent.parent
-        #if not current_parent:
-        #    reached_end = True
     # return root as parent for parentless bones
-    # TODO- root should be actually parentless
     return rig_object.data.edit_bones[0]
 
 def build_armature_hierarchy_from_rigify(rig_object, disconnect_all = True, additional_bones = []):
@@ -115,8 +114,11 @@ def build_armature_hierarchy_from_rigify(rig_object, disconnect_all = True, addi
     for bone in rig_object.data.edit_bones:
         if bone.use_deform:
             parent = search_rigify_deform_bone_true_parent(rig_object, bone)
-            hierarchy.append([bone.name, parent.name, (not disconnect_all) * bone.use_connect, bone.use_local_location, bone.use_inherit_rotation, bone.inherit_scale])
-    # add additional_bones_to_add to hierarchy
+            parentname = ""
+            if parent:
+                parentname = parent.name
+            hierarchy.append([bone.name, parentname, (not disconnect_all) * bone.use_connect, bone.use_local_location, bone.use_inherit_rotation, bone.inherit_scale])
+    # add additional_bones to hierarchy
     for additional_bone in additional_bones:
         bonename = additional_bone.name
         if not is_bonename_in_rig_object(rig_object, bonename):
@@ -127,7 +129,10 @@ def build_armature_hierarchy_from_rigify(rig_object, disconnect_all = True, addi
                 break
         if actual_bone and not any(bonename == sl[0] for sl in hierarchy):
             parent = search_rigify_deform_bone_true_parent(rig_object, actual_bone)
-            hierarchy.append([actual_bone.name, parent.name, (not disconnect_all) * actual_bone.use_connect, actual_bone.use_local_location, actual_bone.use_inherit_rotation, actual_bone.inherit_scale])
+            parentname = ""
+            if parent:
+                parentname = parent.name
+            hierarchy.append([actual_bone.name, parentname, (not disconnect_all) * actual_bone.use_connect, actual_bone.use_local_location, actual_bone.use_inherit_rotation, actual_bone.inherit_scale])
     return hierarchy
 
 def restore_armature_hierarchy(rig_object, hierarchy):
@@ -159,7 +164,6 @@ def put_all_bones_into_layer_index(rig_object, layer_index = 0):
 
 def constrain_rig_to_rigify(gameready_rig, rigify_rig):
     """assumes the rig bones still has matching names to the rigify bones"""
-    # TODO- Constraint names from addon properties so that we can easily identify them when needing to modify the constraints later on
     for bone in gameready_rig.pose.bones:
         copyloc = bone.constraints.new(type='COPY_LOCATION')
         copyloc.name = properties.AddonPreferences.prefix + 'COPY_LOCATION'
