@@ -76,7 +76,7 @@ class SANITIZERIGIFY_PT_AdvancedPanel(bpy.types.Panel):
         return
 
 class SANITIZERIGIFY_PT_AdditionalBonesPanel(bpy.types.Panel):
-    """Nested panel"""
+    """Additional bones panel"""
     bl_parent_id = SANITIZERIGIFY_PT_AdvancedPanel.bl_idname
     bl_label = "Additional bones"
     bl_space_type = 'PROPERTIES'
