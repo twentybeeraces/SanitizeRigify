@@ -241,6 +241,13 @@ def get_tracks_to_bake(source_rig):
         return [solo_track]
     return [track for track in source_rig.animation_data.nla_tracks if track.mute == False]
 
+def get_track_name(track, animation_naming):
+    """returns track name or first strip name"""
+    # track with empty strip uses track name
+    if animation_naming == 'STRIP' and track.strips:
+        return track.strips[0].name
+    return track.name
+
 def get_nla_track_frame_range(nla_track):
     """returns frame start and end of nla_track"""
     frame_start = inf
@@ -328,7 +335,7 @@ def bake_nla_from_source_to_target_rig(context, source_rig, target_rig):
         target_rig.animation_data_create()
     # bake tracks
     for track in tracks_to_bake:
-        name = track.name
+        name = get_track_name(track, source_rig.sr_rigify_properties.animation_naming)
         track.is_solo = True
         frame_start, frame_end = get_nla_track_frame_range(track)
         # add prefix to action to avoid collision

@@ -39,7 +39,7 @@ classes = (
     ui.SANITIZERIGIFY_UL_UIList,
     ui.SANITIZERIGIFY_PT_MainPanel,
     ui.SANITIZERIGIFY_PT_AdvancedPanel,
-    ui.SANITIZERIGIFY_PT_NestedPanel
+    ui.SANITIZERIGIFY_PT_AdditionalBonesPanel
 )
 
 def register():

@@ -71,9 +71,11 @@ class SANITIZERIGIFY_PT_AdvancedPanel(bpy.types.Panel):
                 row.enabled = False
             row.prop(current_rigify.sr_rigify_properties, "disconnect_all_bones", toggle = -1)
             row.prop(current_rigify.sr_rigify_properties, "recenter", toggle = -1)
+            row = layout.row(heading = "Animation naming")
+            row.prop(current_rigify.sr_rigify_properties, "animation_naming", text = "")
         return
 
-class SANITIZERIGIFY_PT_NestedPanel(bpy.types.Panel):
+class SANITIZERIGIFY_PT_AdditionalBonesPanel(bpy.types.Panel):
     """Nested panel"""
     bl_parent_id = SANITIZERIGIFY_PT_AdvancedPanel.bl_idname
     bl_label = "Additional bones"

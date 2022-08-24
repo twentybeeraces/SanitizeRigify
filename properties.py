@@ -102,7 +102,7 @@ class SanitizeRigifyProperties(bpy.types.PropertyGroup):
         items=[
             ('ARMATURE', 'Armature', 'Armature only (with meshes)', 'ARMATURE_DATA', 1),
             ('NLA', 'NLA Animations', 'NLA Animations only', 'NLA', 2),
-            ('ALL', 'All', 'Armature and NLA animations', 'OUTLINER_OB_ARMATURE', 3),
+            ('ALL', 'All', 'Armature and NLA animations', 'OUTLINER_OB_ARMATURE', 3)
         ],
         name="Export mode",
         default='ALL',
@@ -111,6 +111,15 @@ class SanitizeRigifyProperties(bpy.types.PropertyGroup):
     armature_name : bpy.props.StringProperty(name = "Armature name", default = "Armature", override = {'LIBRARY_OVERRIDABLE'}, description = "Name of the armature data for this rig when exported")
     disconnect_all_bones : bpy.props.BoolProperty(name = "Disconnect all bones", default = True, override = {'LIBRARY_OVERRIDABLE'})
     recenter : bpy.props.BoolProperty(name = "Recenter rig", default = True, override = {'LIBRARY_OVERRIDABLE'})
+    animation_naming : bpy.props.EnumProperty(
+        items=[
+            ('TRACK', 'Track', 'Use name of track', 'ARMATURE_DATA', 1),
+            ('STRIP', 'First Strip', 'Use name of first strip in track', 'NLA', 2),
+        ],
+        name="Animation naming",
+        default='STRIP',
+        override = {'LIBRARY_OVERRIDABLE'}
+    )
     
     def set_path(self, value):
         self["path"] = value
