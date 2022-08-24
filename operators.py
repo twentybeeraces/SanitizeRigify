@@ -193,8 +193,8 @@ def reparent_meshes_to_rig(new_rig, old_rig, meshes):
                 mesh.modifiers.remove(modifier)
         # set new parent
         mesh.parent = new_rig
-        # reset locrot
-        mesh.location, mesh.rotation_euler = (0., 0., 0.), (0., 0., 0.)
+        # reset locrotscale
+        mesh.location, mesh.rotation_euler, mesh.scale = (0., 0., 0.), (0., 0., 0.), (1., 1., 1.)
         # create new armature modifier and points to new_rig
         new_modifier = mesh.modifiers.new(name=new_rig.name, type='ARMATURE')
         new_modifier.object = new_rig
