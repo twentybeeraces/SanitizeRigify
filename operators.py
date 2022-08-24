@@ -184,18 +184,20 @@ def toggle_gameready_rig_constraints(gameready_rig, enabled = True):
             if constraint.name in constraint_names:
                 constraint.enabled = enabled
 
-def reparent_meshes_to_rig(rig_object, meshes):
-    """make all armature modifiers point to rig_object"""
+def reparent_meshes_to_rig(new_rig, old_rig, meshes):
+    """make all armature modifiers point to new_rig"""
     for mesh in meshes:
-        # remove all existing armature modifiers
+        # reset modifier
         for modifier in mesh.modifiers:
-            if modifier.type == 'ARMATURE':
+            if modifier.type == 'ARMATURE' and (modifier.object is new_rig or modifier.object is old_rig):
                 mesh.modifiers.remove(modifier)
-        # create new armature modifier that points to rig_object
-        new_modifier = mesh.modifiers.new(name=rig_object.name, type='ARMATURE')
-        new_modifier.object = rig_object
         # set new parent
-        mesh.parent = rig_object
+        mesh.parent = new_rig
+        # reset locrot
+        mesh.location, mesh.rotation_euler = (0., 0., 0.), (0., 0., 0.)
+        # create new armature modifier and points to new_rig
+        new_modifier = mesh.modifiers.new(name=new_rig.name, type='ARMATURE')
+        new_modifier.object = new_rig
 
 def remove_duplicates_vertex_groups_in_objects(objects):
     """prioritise higher indexes as they are likely the most recent ones?"""
@@ -253,12 +255,14 @@ def get_nla_track_frame_range(nla_track):
 def create_game_ready_rig(context, rigify_rig):
     """generate the game-ready rig"""
     deselect_all(context)
-    # get all objects (meshes) parented to rigify
-    meshes = [c for c in rigify_rig.children if c.type == 'MESH']
+    # get all objects (meshes) parented to rigify that are not hidden
+    meshes = [mesh for mesh in rigify_rig.children if (mesh.type == 'MESH' and mesh.hide_viewport == False)]
     # duplicate rigify
     gameready_rig_data = rigify_rig.data.copy()
     gameready_rig_data.name = properties.AddonPreferences.prefix + rigify_rig.data.name
     gameready_rig = bpy.data.objects.new(name = gameready_rig_data.name, object_data = gameready_rig_data)
+    with context.temp_override(selected_objects = [gameready_rig], active_object = gameready_rig):
+        bpy.ops.object.make_local(type = 'SELECT_OBDATA')
     # set position if not recentering (recenter just stays at 0. 0. 0.)
     if rigify_rig.sr_rigify_properties.recenter:
         gameready_rig.location, gameready_rig.rotation_euler = (0., 0., 0.), (0., 0., 0.)
@@ -297,7 +301,7 @@ def create_game_ready_rig(context, rigify_rig):
     constrain_rig_to_rigify(gameready_rig, rigify_rig)
     # reparent all meshes to generated gameready_rig, with empty groups
     bpy.ops.object.mode_set(mode = 'OBJECT', toggle = False)
-    reparent_meshes_to_rig(gameready_rig, meshes)
+    reparent_meshes_to_rig(gameready_rig, rigify_rig, meshes)
     remove_duplicates_vertex_groups_in_objects(meshes)
     # fix bone names. Some things (e.g. UE Control Rig) are messed up if bones have DEF- prefix (any other prefix??)
     remove_bone_DEF_prefix(gameready_rig)
@@ -322,7 +326,7 @@ def bake_nla_from_source_to_target_rig(context, source_rig, target_rig):
     # create target's animation_data if it does not exist
     if not target_rig.animation_data:
         target_rig.animation_data_create()
-    # iterate over all tracks_to_bake
+    # bake tracks
     for track in tracks_to_bake:
         name = track.name
         track.is_solo = True
@@ -403,11 +407,10 @@ class SANITIZERIGIFY_OT_Unpreview(bpy.types.Operator):
         deselect_all(context)
         # restore bone DEF- prefixes of gameready_rig to match rigify_rig
         restore_bone_DEF_prefix(gameready_rig)
-        # get all meshes
-        meshes = [c for c in rigify_rig.children if c.type == 'MESH']
-        meshes.extend(c for c in gameready_rig.children if c.type == 'MESH')
+        # get all meshes parented to the game-ready rig. Regardless of whether they're hidden or not
+        meshes = [mesh for mesh in gameready_rig.children if mesh.type == 'MESH']
         # reparent meshes to rigify
-        reparent_meshes_to_rig(rigify_rig, meshes)
+        reparent_meshes_to_rig(rigify_rig, gameready_rig, meshes)
         # delete rig and all its actions
         delete_rig(gameready_rig, True)
         # select rigify
@@ -454,7 +457,7 @@ def scale_for_export(context, rig_object, meshes, scale_target):
     [mesh.select_set(True) for mesh in meshes]
     rig_object.select_set(True)
     context.view_layer.objects.active = rig_object
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True) ### TBD if apply here or after adjusting the actions???
+    bpy.ops.object.transform_apply(location = True, rotation = True, scale = True)
     # scale nla_tracks by scale_factor
     if rig_object.animation_data:
         # assume no active action in animation_data
@@ -503,7 +506,11 @@ class SANITIZERIGIFY_OT_Export(bpy.types.Operator, bpy_extras.io_utils.ExportHel
             bpy.ops.sanitize_rigify.preview()
             no_preview = True
         gameready_rig = rigify_rig.sr_rigify_properties.generated_rig
+        # export all meshes parented to the gameready-rig
         meshes = [mesh for mesh in gameready_rig.children if mesh.type == 'MESH']
+        # unhide all of them
+        for mesh in meshes:
+            mesh.hide_viewport = False
         # name of the exported armature
         armature_name = rigify_rig.sr_rigify_properties.armature_name
         # temporary rename objects & armatures of the same name
@@ -521,7 +528,7 @@ class SANITIZERIGIFY_OT_Export(bpy.types.Operator, bpy_extras.io_utils.ExportHel
                 track.mute = False
         # scale rig, meshes & nla tracks
         prev_scene_scale = context.scene.unit_settings.scale_length
-        scale_for_export(context, gameready_rig, meshes, 0.01) # TODO- 0.01 should be in the addon preferences
+        scale_for_export(context, gameready_rig, meshes, properties.AddonPreferences.export_scale)
         deselect_all(context)
         if rigify_rig.sr_rigify_properties.export_mode == 'ARMATURE':
             [mesh.select_set(True) for mesh in meshes]

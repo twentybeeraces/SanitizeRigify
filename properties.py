@@ -64,6 +64,7 @@ class AddonPreferences(bpy.types.AddonPreferences):
     # addon constants
     prefix = "sr_"
     collection_name = "SanitizeRigify"
+    export_scale = 0.01
     # settings
     def update_armature_name(self, context):
         if self.default_armature_name == "":
@@ -84,7 +85,7 @@ class SanitizeRigifyBoneProperty(bpy.types.PropertyGroup):
     """
     Bone property in list of bones
     """
-    name : bpy.props.StringProperty(name="Bone name")
+    name : bpy.props.StringProperty(name="Bone name", override = {'LIBRARY_OVERRIDABLE'})
 
 class SanitizeRigifyProperties(bpy.types.PropertyGroup):
     """
@@ -92,11 +93,11 @@ class SanitizeRigifyProperties(bpy.types.PropertyGroup):
     A unit is : rigify rig + game-ready rig + parented meshes
     Always put on the rigify rig
     """
-    generated_rig : bpy.props.PointerProperty(type = bpy.types.Object, name = "Generated rig", poll = is_generated_rig, description = "Generated game-ready rig")
-    have_additional_bones : bpy.props.BoolProperty(name = "Have additional bones", default = False)
-    additional_bones : bpy.props.CollectionProperty(type = SanitizeRigifyBoneProperty, name = "Additional bones", description = "List of Bones to keep in created Armature regardless of deform status")
-    additional_bones_index : bpy.props.IntProperty(name = "Index for Additional bones", default = 0)
-    additional_bones_toadd : bpy.props.StringProperty(name = "Additional bone to add")
+    generated_rig : bpy.props.PointerProperty(type = bpy.types.Object, name = "Generated rig", poll = is_generated_rig, override = {'LIBRARY_OVERRIDABLE'}, description = "Generated game-ready rig")
+    have_additional_bones : bpy.props.BoolProperty(name = "Have additional bones", default = False, override = {'LIBRARY_OVERRIDABLE'})
+    additional_bones : bpy.props.CollectionProperty(type = SanitizeRigifyBoneProperty, name = "Additional bones", override = {'LIBRARY_OVERRIDABLE'}, description = "List of Bones to keep in created Armature regardless of deform status")
+    additional_bones_index : bpy.props.IntProperty(name = "Index for Additional bones", default = 0, override = {'LIBRARY_OVERRIDABLE'})
+    additional_bones_toadd : bpy.props.StringProperty(name = "Additional bone to add", override = {'LIBRARY_OVERRIDABLE'})
     export_mode : bpy.props.EnumProperty(
         items=[
             ('ARMATURE', 'Armature', 'Armature only (with meshes)', 'ARMATURE_DATA', 1),
@@ -104,32 +105,33 @@ class SanitizeRigifyProperties(bpy.types.PropertyGroup):
             ('ALL', 'All', 'Armature and NLA animations', 'OUTLINER_OB_ARMATURE', 3),
         ],
         name="Export mode",
-        default='ALL'
+        default='ALL',
+        override = {'LIBRARY_OVERRIDABLE'}
     )
-    armature_name : bpy.props.StringProperty(name = "Armature name", default = "Armature", description = "Name of the armature data for this rig when exported")
-    disconnect_all_bones : bpy.props.BoolProperty(name = "Disconnect all bones", default = True)
-    recenter : bpy.props.BoolProperty(name = "Recenter rig", default = True)
+    armature_name : bpy.props.StringProperty(name = "Armature name", default = "Armature", override = {'LIBRARY_OVERRIDABLE'}, description = "Name of the armature data for this rig when exported")
+    disconnect_all_bones : bpy.props.BoolProperty(name = "Disconnect all bones", default = True, override = {'LIBRARY_OVERRIDABLE'})
+    recenter : bpy.props.BoolProperty(name = "Recenter rig", default = True, override = {'LIBRARY_OVERRIDABLE'})
     
     def set_path(self, value):
         self["path"] = value
         self["path_owner"] = self.id_data.name
     def get_path(self):
         object_owner = self.id_data
-        if object_owner.name != self.path_owner:
+        if not self.get("path") or not self.get("path_owner") or (object_owner.name != self.path_owner):
             # reset path if path_owner is not us
             self["path"] = "//"
             self["path_owner"] = object_owner.name
             print("Path was reset")
         return self["path"]
-    path : bpy.props.StringProperty(name = "Path", default = "//", subtype = 'DIR_PATH', set = set_path, get = get_path, description = "Export path for this rig. Renaming the rig will reset")
+    path : bpy.props.StringProperty(name = "Path", default = "//", subtype = 'DIR_PATH', set = set_path, get = get_path, override = {'LIBRARY_OVERRIDABLE'}, description = "Export path for this rig. Renaming the rig will reset")
     # Used to reset path when duplicating rigs. If this is not the same as the object's name then reset path
-    path_owner : bpy.props.StringProperty(name = "Path owner", default = "", options = {'HIDDEN'})
+    path_owner : bpy.props.StringProperty(name = "Path owner", default = "", options = {'HIDDEN'}, override = {'LIBRARY_OVERRIDABLE'})
 
 def register():
-    bpy.types.Object.sr_rigify_properties = bpy.props.PointerProperty(type = SanitizeRigifyProperties)
-    bpy.types.Object.sr_origin = bpy.props.PointerProperty(type = bpy.types.Object, poll = is_rigify, description = "Origin rigify")
-    bpy.types.Scene.sr_current_rigify = bpy.props.PointerProperty(type = bpy.types.Object, poll = is_rigify, description = "Current rigify")
-    bpy.types.Bone.sr_is_prefixed = bpy.props.BoolProperty(default = False)
+    bpy.types.Object.sr_rigify_properties = bpy.props.PointerProperty(type = SanitizeRigifyProperties, override = {'LIBRARY_OVERRIDABLE'})
+    bpy.types.Object.sr_origin = bpy.props.PointerProperty(type = bpy.types.Object, poll = is_rigify, override = {'LIBRARY_OVERRIDABLE'}, description = "Origin rigify")
+    bpy.types.Scene.sr_current_rigify = bpy.props.PointerProperty(type = bpy.types.Object, poll = is_rigify, override = {'LIBRARY_OVERRIDABLE'}, description = "Current rigify")
+    bpy.types.Bone.sr_is_prefixed = bpy.props.BoolProperty(default = False, override = {'LIBRARY_OVERRIDABLE'})
     # handler to update current_rigify
     bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_handler)
 
