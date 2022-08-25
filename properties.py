@@ -140,7 +140,6 @@ def register():
     bpy.types.Object.sr_rigify_properties = bpy.props.PointerProperty(type = SanitizeRigifyProperties, override = {'LIBRARY_OVERRIDABLE'})
     bpy.types.Object.sr_origin = bpy.props.PointerProperty(type = bpy.types.Object, poll = is_rigify, override = {'LIBRARY_OVERRIDABLE'}, description = "Origin rigify")
     bpy.types.Scene.sr_current_rigify = bpy.props.PointerProperty(type = bpy.types.Object, poll = is_rigify, override = {'LIBRARY_OVERRIDABLE'}, description = "Current rigify")
-    bpy.types.Bone.sr_is_prefixed = bpy.props.BoolProperty(default = False, override = {'LIBRARY_OVERRIDABLE'})
     # handler to update current_rigify
     bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_handler)
 
@@ -148,6 +147,5 @@ def unregister():
     del bpy.types.Object.sr_rigify_properties
     del bpy.types.Object.sr_origin
     del bpy.types.Scene.sr_current_rigify
-    del bpy.types.Bone.sr_is_prefixed
     # handler to update current_rigify
     bpy.app.handlers.depsgraph_update_post.remove(depsgraph_update_handler)

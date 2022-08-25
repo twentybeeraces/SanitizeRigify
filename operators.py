@@ -184,12 +184,12 @@ def toggle_gameready_rig_constraints(gameready_rig, enabled = True):
             if constraint.name in constraint_names:
                 constraint.enabled = enabled
 
-def reparent_meshes_to_rig(new_rig, old_rig, meshes):
+def parent_meshes_to_rig(new_rig, old_rig, meshes):
     """make all armature modifiers point to new_rig"""
     for mesh in meshes:
         # reset modifier
         for modifier in mesh.modifiers:
-            if modifier.type == 'ARMATURE' and (modifier.object is new_rig or modifier.object is old_rig):
+            if modifier.type == 'ARMATURE' and modifier.object is old_rig:
                 mesh.modifiers.remove(modifier)
         # set new parent
         mesh.parent = new_rig
@@ -199,27 +199,13 @@ def reparent_meshes_to_rig(new_rig, old_rig, meshes):
         new_modifier = mesh.modifiers.new(name=new_rig.name, type='ARMATURE')
         new_modifier.object = new_rig
 
-def remove_duplicates_vertex_groups_in_objects(objects):
-    """prioritise higher indexes as they are likely the most recent ones?"""
-    for obj in objects:
-        unique_vg = []
-        for vg in reversed(obj.vertex_groups):
-            if vg not in unique_vg:
-                unique_vg.append(vg)
-        [obj.vertex_groups.remove(vg) for vg in obj.vertex_groups if vg not in unique_vg]
-
-def remove_bone_DEF_prefix(rig_object):
-    """removes DEF- prefix on deform bones. And mark each bone that has it to restore later"""
+def remove_bone_prefixes(rig_object):
+    """removes prefixes on deform bones"""
+    addonprefs = properties.AddonPreferences
+    prefixes = (addonprefs.ORG_prefix, addonprefs.DEF_prefix, addonprefs.MCH_prefix, addonprefs.VIS_prefix)
     for bone in rig_object.data.bones:
-        if bone.use_deform and bone.name.startswith(properties.AddonPreferences.DEF_prefix):
-            bone.sr_is_prefixed = True
-            bone.name = bone.name.removeprefix(properties.AddonPreferences.DEF_prefix)
-
-def restore_bone_DEF_prefix(rig_object):
-    """restores DEF- prefix on deform bones"""
-    for bone in rig_object.data.bones:
-        if bone.use_deform and bone.sr_is_prefixed:
-            bone.name = properties.AddonPreferences.DEF_prefix + bone.name
+        if bone.use_deform and any(bone.name.startswith(prefix := pr) for pr in prefixes):
+            bone.name = bone.name.removeprefix(prefix)
 
 def delete_rig(rig_object, delete_actions = False):
     """delete the rig and optionally all actions"""
@@ -262,8 +248,6 @@ def get_nla_track_frame_range(nla_track):
 def create_game_ready_rig(context, rigify_rig):
     """generate the game-ready rig"""
     deselect_all(context)
-    # get all objects (meshes) parented to rigify that are not hidden
-    meshes = [mesh for mesh in rigify_rig.children if (mesh.type == 'MESH' and mesh.hide_viewport == False)]
     # duplicate rigify
     gameready_rig_data = rigify_rig.data.copy()
     gameready_rig_data.name = properties.AddonPreferences.prefix + rigify_rig.data.name
@@ -279,7 +263,6 @@ def create_game_ready_rig(context, rigify_rig):
     add_scene_object_to_collection(context, gameready_rig, properties.AddonPreferences.collection_name)
     # remove rigify ID (rig_id)
     del gameready_rig.data[properties.AddonPreferences.rigify_id_prop_name]
-
     # build hierarchy
     gameready_rig.select_set(True)
     context.view_layer.objects.active = gameready_rig
@@ -298,20 +281,32 @@ def create_game_ready_rig(context, rigify_rig):
     put_all_bones_into_layer_index(gameready_rig, 0)
     # restore hierarchy (destroyed when removing bones above)
     restore_armature_hierarchy(gameready_rig, hierarchy)
-
     # unhide bones & reset bbone segments
-    bpy.ops.object.mode_set(mode = 'POSE', toggle = False)
+    bpy.ops.object.mode_set(mode = 'OBJECT', toggle = False)
     for bone in gameready_rig.data.bones:
         bone.hide = False
         bone.bbone_segments = 1
     # add LocRot constraints
     constrain_rig_to_rigify(gameready_rig, rigify_rig)
-    # reparent all meshes to generated gameready_rig, with empty groups
-    bpy.ops.object.mode_set(mode = 'OBJECT', toggle = False)
-    reparent_meshes_to_rig(gameready_rig, rigify_rig, meshes)
-    remove_duplicates_vertex_groups_in_objects(meshes)
+
+    # duplicate meshes parented to rigify that are not hidden
+    meshes = []
+    for orig_mesh in rigify_rig.children:
+        if (orig_mesh.type == 'MESH' and orig_mesh.hide_viewport == False and not orig_mesh.hide_get()):
+            new_data = orig_mesh.data.copy()
+            new_data.name = properties.AddonPreferences.prefix + orig_mesh.data.name
+            new_mesh = bpy.data.objects.new(name = new_data.name, object_data = new_data)
+            with context.temp_override(selected_objects = [new_mesh], active_object = new_mesh):
+                bpy.ops.object.make_local(type = 'SELECT_OBDATA')
+            add_scene_object_to_collection(context, new_mesh, properties.AddonPreferences.collection_name)
+            meshes.append(new_mesh)
+            # also hide originals
+            orig_mesh.hide_viewport = True
+            orig_mesh.hide_set(True)
+    # parent copied meshes to generated gameready_rig, with empty groups
+    parent_meshes_to_rig(gameready_rig, rigify_rig, meshes)
     # fix bone names. Some things (e.g. UE Control Rig) are messed up if bones have DEF- prefix (any other prefix??)
-    remove_bone_DEF_prefix(gameready_rig)
+    remove_bone_prefixes(gameready_rig)
     # save origin rigify on generated rig and vice versa
     gameready_rig.sr_origin = rigify_rig
     rigify_rig.sr_rigify_properties.generated_rig = gameready_rig
@@ -329,7 +324,6 @@ def bake_nla_from_source_to_target_rig(context, source_rig, target_rig):
     # select target object
     target_rig.select_set(True)
     context.view_layer.objects.active = target_rig
-    bpy.ops.object.mode_set(mode = 'POSE', toggle = False)
     # create target's animation_data if it does not exist
     if not target_rig.animation_data:
         target_rig.animation_data_create()
@@ -377,7 +371,6 @@ class SANITIZERIGIFY_OT_Preview(bpy.types.Operator):
         return can_preview(context, context.scene.sr_current_rigify)
     def execute(self, context):
         rigify_rig = context.scene.sr_current_rigify
-        deselect_all(context)
         prev_location, prev_rotation = rigify_rig.location.copy(), rigify_rig.rotation_euler.copy()
         if rigify_rig.sr_rigify_properties.recenter:
             rigify_rig.location = (0., 0., 0.)
@@ -396,6 +389,7 @@ class SANITIZERIGIFY_OT_Preview(bpy.types.Operator):
         # restore location and hide rigify
         rigify_rig.location, rigify_rig.rotation_euler = prev_location, prev_rotation
         rigify_rig.hide_viewport = True
+        rigify_rig.hide_set(True)
         self.report(type={'INFO'}, message=("Preview done"))
         return {'FINISHED'}
 
@@ -412,16 +406,18 @@ class SANITIZERIGIFY_OT_Unpreview(bpy.types.Operator):
         rigify_rig = context.scene.sr_current_rigify
         gameready_rig = rigify_rig.sr_rigify_properties.generated_rig
         deselect_all(context)
-        # restore bone DEF- prefixes of gameready_rig to match rigify_rig
-        restore_bone_DEF_prefix(gameready_rig)
-        # get all meshes parented to the game-ready rig. Regardless of whether they're hidden or not
-        meshes = [mesh for mesh in gameready_rig.children if mesh.type == 'MESH']
-        # reparent meshes to rigify
-        reparent_meshes_to_rig(rigify_rig, gameready_rig, meshes)
+        # delete all meshes parented to the game-ready rig. Regardless of whether they're hidden or not
+        [bpy.data.meshes.remove(mesh.data) for mesh in gameready_rig.children if mesh.type == 'MESH']
+        # unhide meshes parented to rigify
+        for mesh in rigify_rig.children:
+            if mesh.type == 'MESH':
+                mesh.hide_viewport = False
+                mesh.hide_set(False)
         # delete rig and all its actions
         delete_rig(gameready_rig, True)
         # select rigify
         rigify_rig.hide_viewport = False
+        rigify_rig.hide_set(False)
         rigify_rig.select_set(True)
         context.view_layer.objects.active = rigify_rig
         self.report(type={'INFO'}, message=("Unpreview done"))
@@ -518,6 +514,7 @@ class SANITIZERIGIFY_OT_Export(bpy.types.Operator, bpy_extras.io_utils.ExportHel
         # unhide all of them
         for mesh in meshes:
             mesh.hide_viewport = False
+            mesh.hide_set(False)
         # name of the exported armature
         armature_name = rigify_rig.sr_rigify_properties.armature_name
         # temporary rename objects & armatures of the same name
@@ -559,7 +556,7 @@ class SANITIZERIGIFY_OT_Export(bpy.types.Operator, bpy_extras.io_utils.ExportHel
             bake_anim_use_nla_strips=True,
             bake_anim_use_all_actions=False,
             object_types={'ARMATURE', 'MESH'},
-            use_custom_props=False,
+            use_custom_props=False, #TODO- Blender still doesn't export props/curves
             global_scale=1.0,
             apply_scale_options='FBX_SCALE_NONE',
             axis_forward='-Z',
