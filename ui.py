@@ -9,10 +9,9 @@ class SANITIZERIGIFY_UL_UIList(bpy.types.UIList):
             row = layout.row(align = True)
             row.alignment = 'EXPAND'
             row.label(text = item.name, translate = False, icon = 'BONE_DATA')
-            #TODO- row.prop(item, "include_all_children", text="", toggle=1)
             op = row.operator(operators.SANITIZERIGIFY_OT_RemoveAdditionalBone.bl_idname, text = "", icon = 'REMOVE')
             op.index = index
-        # 'GRID' layout type should be as compact as possible (typically a single icon!).
+
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.label(text = "", icon = 'BONE_DATA')
@@ -21,10 +20,9 @@ class SANITIZERIGIFY_PT_MainPanel(bpy.types.Panel):
     """The main panel of the addon"""
     bl_idname = "SANITIZERIGIFY_PT_MainPanel"
     bl_label = 'Sanitize Rigify'
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_category = 'SanitizeRigify'
-    bl_context = 'object'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Sanitize Rigify'
 
     def draw(self, context):
         layout = self.layout
@@ -51,11 +49,10 @@ class SANITIZERIGIFY_PT_AdvancedPanel(bpy.types.Panel):
     bl_parent_id = SANITIZERIGIFY_PT_MainPanel.bl_idname
     bl_idname = "SANITIZERIGIFY_PT_AdvancedPanel"
     bl_label = "Advanced"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_category = 'SanitizeRigify'
-    bl_context = 'object'
-    bl_order = 0
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Sanitize Rigify'
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout
@@ -66,12 +63,13 @@ class SANITIZERIGIFY_PT_AdvancedPanel(bpy.types.Panel):
             row.prop(current_rigify.sr_rigify_properties, "armature_name", text = "")
             row.operator(operators.SANITIZERIGIFY_OT_ResetArmatureName.bl_idname, text = "", icon = 'RECOVER_LAST')
             # options
-            row = layout.row()
+            col = layout.column()
             if operators.is_previewing(context, current_rigify):
-                row.enabled = False
+                col.enabled = False
+            row = col.row()
             row.prop(current_rigify.sr_rigify_properties, "disconnect_all_bones", toggle = -1)
             row.prop(current_rigify.sr_rigify_properties, "recenter", toggle = -1)
-            row = layout.row(heading = "Animation naming")
+            row = col.row(heading = "Animation naming")
             row.prop(current_rigify.sr_rigify_properties, "animation_naming", text = "")
         return
 
@@ -79,11 +77,11 @@ class SANITIZERIGIFY_PT_AdditionalBonesPanel(bpy.types.Panel):
     """Additional bones panel"""
     bl_parent_id = SANITIZERIGIFY_PT_AdvancedPanel.bl_idname
     bl_label = "Additional bones"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_category = 'SanitizeRigify'
-    bl_context = 'object'
-    bl_order = 0
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Sanitize Rigify'
+    bl_options = {'DEFAULT_CLOSED'}
+
     @classmethod
     def poll(cls, context):
         return context.scene.sr_current_rigify

@@ -14,12 +14,13 @@
 bl_info = {
     "name" : "Sanitize Rigify",
     "author" : "Twenty Beer Aces",
-    "description" : "Export rigify as fbx suitable for game engines (appropriate scale & hierarchy)",
+    "description" : "Export rigify as fbx for game engines with appropriate scale & hierarchy",
     "blender" : (3, 2, 0),
     "version" : (1, 0, 0),
-    "location" : "",
+    "location" : "View3D > UI > Sanitize Rigify",
+    "doc_url": "https://twenty-beer-aces.itch.io/sanitize-rigify",
     "warning" : "",
-    "category" : "Pipeline"
+    "category" : "Import-Export"
 }
 
 import bpy
